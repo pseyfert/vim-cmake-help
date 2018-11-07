@@ -39,6 +39,7 @@ let s:buf_nr = -1
 
 function! CmakedocView(newposition, position) abort
   let helpterm = expand("<cword>")
+  let helpline = getline(".")
   " reuse existing buffer window if it exists otherwise create a new one
   let is_visible = bufexists(s:buf_nr) && bufwinnr(s:buf_nr) != -1
   if !bufexists(s:buf_nr)
@@ -83,7 +84,27 @@ function! CmakedocView(newposition, position) abort
 
   setlocal modifiable
   %delete _
-  silent execute "%!cmake --help-command ".helpterm
+
+  " now some spaghetti code
+  " If we call help on find_package or include, call cmake --help-command on it.
+  " I want these cases out of the way before the smart what-help-to-call
+  " part comes.
+
+  if helpterm ==? "find_package" || helpterm ==? "include"
+    silent execute "%!cmake --help-command ".helpterm
+
+  " hope find_package is on the same line as the search term and after
+  " `find_package` there's either a space or an opening parenthesis.
+  elseif split(helpline,'[ (]')[0] ==? "find_package"
+    silent execute "%!cmake --help-module Find".helpterm
+  " same for include
+  elseif split(helpline,'[ (]')[0] ==? "include"
+    silent execute "%!cmake --help-module ".helpterm
+  " we're not helping inside find_package or include. Assume it's a command
+  " we're looking for.
+  else
+    silent execute "%!cmake --help-command ".helpterm
+  endif
   sil $delete _
   setlocal nomodifiable
   sil normal! gg
